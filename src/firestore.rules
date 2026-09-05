@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Har user apna khud ka profile doc padh sake (semester check ke liye)
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // sirf tum Console se add/edit karoge
+    }
+
+    // Sirf apne assigned semester ka data padh sake
+    match /semesters/{sem}/{document=**} {
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && ("sem" + string(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.semester)) == sem;
+      allow write: if false; // Sirf tum Firebase Console se manually add karoge
+    }
+  }
+}
