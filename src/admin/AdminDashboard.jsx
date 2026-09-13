@@ -7,7 +7,8 @@ import {
   setDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { db } from "../firebase";
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase";
 import { useAuth } from "../AuthContext";
 
 const SEM_OPTIONS = [1, 2, 3, 4, 5, 6];
@@ -31,6 +32,8 @@ export default function AdminDashboard() {
   const [newTitle, setNewTitle] = useState("");
   const [newType, setNewType] = useState("Notes");
   const [newUrl, setNewUrl] = useState("");
+  const [newFile, setNewFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null); // null = not uploading
 
   // MCQ builder state
   const [mcqQuestions, setMcqQuestions] = useState([{ ...EMPTY_QUESTION }]);
@@ -93,8 +96,10 @@ export default function AdminDashboard() {
 
   async function handleAddMaterial(e) {
     e.preventDefault();
-    if (!newTitle.trim() || !newUrl.trim() || !activeSubject) return;
-    const ref = collection(
+    if (!newTitle.trim() || !activeSubject) return;
+    if (!newFile && !newUrl.trim()) return; // need either a file or a link
+
+    const materialsRef = collection(
       db,
       "semesters",
       `sem${semId}`,
@@ -102,7 +107,44 @@ export default function AdminDashboard() {
       activeSubject.id,
       "materials"
     );
-    await setDoc(doc(ref), {
+
+    if (newFile) {
+      // Upload the actual file to Firebase Storage, then save its download URL
+      const path = `materials/sem${semId}/${activeSubject.id}/${Date.now()}-${newFile.name}`;
+      const fileRef = storageRef(storage, path);
+      const task = uploadBytesResumable(fileRef, newFile);
+
+      setUploadProgress(0);
+      task.on(
+        "state_changed",
+        (snapshot) => {
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          setUploadProgress(pct);
+        },
+        (error) => {
+          setUploadProgress(null);
+          alert("Upload failed: " + error.message);
+        },
+        async () => {
+          const downloadUrl = await getDownloadURL(task.snapshot.ref);
+          await setDoc(doc(materialsRef), {
+            title: newTitle.trim(),
+            type: newType,
+            fileUrl: downloadUrl,
+          });
+          setNewTitle("");
+          setNewUrl("");
+          setNewFile(null);
+          setUploadProgress(null);
+          setStatus("File uploaded and material added.");
+          openSubject(activeSubject);
+        }
+      );
+      return;
+    }
+
+    // No file selected — fall back to a plain link (e.g. YouTube for videos)
+    await setDoc(doc(materialsRef), {
       title: newTitle.trim(),
       type: newType,
       fileUrl: newUrl.trim(),
@@ -319,19 +361,49 @@ export default function AdminDashboard() {
               </select>
 
               {newType !== "MCQ" ? (
-                /* Normal materials: title + link */
+                /* Normal materials: title + (file upload OR link) */
                 <form onSubmit={handleAddMaterial} className="admin-form">
                   <input
                     placeholder="Title (e.g. Unit 1 Notes)"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                   />
-                  <input
-                    placeholder={newType === "Video" ? "YouTube link (unlisted)" : "Google Drive link (fileUrl)"}
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                  />
-                  <button type="submit" className="btn-primary btn-sm">Add Material</button>
+
+                  {newType === "Video" ? (
+                    <input
+                      placeholder="YouTube link (unlisted)"
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                    />
+                  ) : (
+                    <>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
+                        onChange={(e) => setNewFile(e.target.files[0] || null)}
+                      />
+                      <span className="material-meta" style={{ margin: "-0.3rem 0 0" }}>
+                        or paste a link instead ↓
+                      </span>
+                      <input
+                        placeholder="Google Drive / external link (optional if file chosen above)"
+                        value={newUrl}
+                        onChange={(e) => setNewUrl(e.target.value)}
+                        disabled={!!newFile}
+                      />
+                    </>
+                  )}
+
+                  {uploadProgress !== null && (
+                    <div className="upload-progress-track">
+                      <div className="upload-progress-fill" style={{ width: `${uploadProgress}%` }} />
+                      <span className="upload-progress-label mono">{uploadProgress}%</span>
+                    </div>
+                  )}
+
+                  <button type="submit" className="btn-primary btn-sm" disabled={uploadProgress !== null}>
+                    {uploadProgress !== null ? "Uploading…" : "Add Material"}
+                  </button>
                 </form>
               ) : (
                 /* MCQ builder: title + list of questions with 4 options each */
