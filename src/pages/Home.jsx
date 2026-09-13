@@ -2,6 +2,8 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
+const ADMIN_EMAIL = "amankalyanwat@gmail.com";
+
 export default function Home() {
   const { logout, user, allowedSemester } = useAuth();
 
@@ -17,6 +19,9 @@ export default function Home() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <span className="user-chip">{user?.email}</span>
+          {user?.email === ADMIN_EMAIL && (
+            <Link to="/admin" className="btn-ghost">Admin panel</Link>
+          )}
           <button onClick={logout} className="btn-ghost">Sign out</button>
         </div>
       </div>
