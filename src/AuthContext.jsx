@@ -19,11 +19,16 @@ export function AuthProvider({ children }) {
       if (currentUser) {
         // Fetch this user's allowed semester from Firestore "users" collection
         const profileRef = doc(db, "users", currentUser.uid);
-        const profileSnap = await getDoc(profileRef);
-        if (profileSnap.exists()) {
-          setAllowedSemester(profileSnap.data().semester);
-        } else {
-          setAllowedSemester(null); // no profile = no access
+        try {
+          const profileSnap = await getDoc(profileRef);
+          if (profileSnap.exists()) {
+            setAllowedSemester(profileSnap.data().semester);
+          } else {
+            setAllowedSemester(null); // no profile = no access
+          }
+        } catch (error) {
+          console.error("Unable to load the user profile:", error);
+          setAllowedSemester(null);
         }
       } else {
         setAllowedSemester(null);
