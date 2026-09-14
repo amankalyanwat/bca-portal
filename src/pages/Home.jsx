@@ -1,5 +1,5 @@
 // src/pages/Home.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -19,11 +19,52 @@ function Icon({ children }) {
   return <span className="dashboard-icon" aria-hidden="true">{children}</span>;
 }
 
+function AnimatedNumber({ value }) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const numberRef = useRef(null);
+
+  useEffect(() => {
+    const element = numberRef.current;
+    if (!element) return undefined;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setDisplayValue(value);
+      return undefined;
+    }
+
+    let frameId;
+    let started = false;
+    const duration = 850;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || started) return;
+      started = true;
+      const startTime = performance.now();
+      const animate = (now) => {
+        const progress = Math.min((now - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        setDisplayValue(Math.round(value * eased));
+        if (progress < 1) frameId = requestAnimationFrame(animate);
+      };
+      frameId = requestAnimationFrame(animate);
+      observer.disconnect();
+    }, { threshold: 0.35 });
+
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, [value]);
+
+  return <strong ref={numberRef}>{displayValue}</strong>;
+}
+
 function StatCard({ label, value, detail, tone }) {
   return (
     <div className={`stat-card stat-${tone}`}>
       <div className="stat-card-top"><span>{label}</span><span className="stat-dot" /></div>
-      <strong>{value}</strong>
+      {typeof value === "number" ? <AnimatedNumber value={value} /> : <strong>{value}</strong>}
       <small>{detail}</small>
     </div>
   );
@@ -33,14 +74,83 @@ function SkeletonCard() {
   return <div className="subject-skeleton"><span /><span /><span /></div>;
 }
 
+function usePremiumMotion(motionKey) {
+  useEffect(() => {
+    const root = document.documentElement;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const mobile = window.matchMedia("(max-width: 560px)").matches;
+    if (reduceMotion) return undefined;
+
+    root.classList.add("motion-ready");
+    const motionItems = document.querySelectorAll(
+      ".stamp-card, .subject-card, .modern-subject-card, .stat-card, .quick-action"
+    );
+    const revealObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -36px" });
+
+    motionItems.forEach((item, index) => {
+      item.style.setProperty("--motion-delay", `${Math.min(index * 55, 440)}ms`);
+      revealObserver.observe(item);
+    });
+
+    const cleanups = [];
+    if (!mobile) {
+      motionItems.forEach((item) => {
+        const handleMove = (event) => {
+          const rect = item.getBoundingClientRect();
+          const x = (event.clientX - rect.left) / rect.width - 0.5;
+          const y = (event.clientY - rect.top) / rect.height - 0.5;
+          item.style.setProperty("--tilt-x", `${(-y * 6).toFixed(2)}deg`);
+          item.style.setProperty("--tilt-y", `${(x * 6).toFixed(2)}deg`);
+          item.classList.add("is-tilting");
+        };
+        const handleLeave = () => {
+          item.classList.remove("is-tilting");
+          item.style.setProperty("--tilt-x", "0deg");
+          item.style.setProperty("--tilt-y", "0deg");
+        };
+        item.addEventListener("pointermove", handleMove);
+        item.addEventListener("pointerleave", handleLeave);
+        cleanups.push(() => {
+          item.removeEventListener("pointermove", handleMove);
+          item.removeEventListener("pointerleave", handleLeave);
+        });
+      });
+    }
+
+    const nav = document.querySelector(".dashboard-nav");
+    const handleScroll = () => nav?.classList.toggle("nav-scrolled", window.scrollY > 16);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      revealObserver.disconnect();
+      window.removeEventListener("scroll", handleScroll);
+      cleanups.forEach((cleanup) => cleanup());
+      root.classList.remove("motion-ready");
+    };
+  }, [motionKey]);
+}
+
 export default function Home() {
   const { logout, user, allowedSemester } = useAuth();
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [nightMode, setNightMode] = useState(() => localStorage.getItem("bca-night-mode") === "true");
   const semester = allowedSemester ? String(allowedSemester) : null;
   const firstName = user?.displayName?.split(" ")[0] || user?.email?.split("@")[0] || "Student";
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("night-mode", nightMode);
+    localStorage.setItem("bca-night-mode", String(nightMode));
+  }, [nightMode]);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -90,6 +200,7 @@ export default function Home() {
   const notesPath = firstSubject ? `/semester/${semester}/subject/${firstSubject.id}/materials/notes` : "#";
   const mcqPath = firstSubject ? `/semester/${semester}/subject/${firstSubject.id}/materials/mcq` : "#";
   const materialsPath = firstSubject ? `/semester/${semester}/subject/${firstSubject.id}` : "#";
+  usePremiumMotion(`${semester}-${loading}-${subjects.length}`);
 
   return (
     <div className="dashboard-shell">
@@ -99,6 +210,16 @@ export default function Home() {
           <span className="brand-caption">material portal</span>
         </Link>
         <div className="nav-actions">
+          <button
+            className="theme-toggle"
+            type="button"
+            onClick={() => setNightMode((isNight) => !isNight)}
+            aria-pressed={nightMode}
+            aria-label={nightMode ? "Switch to light mode" : "Switch to night mode"}
+          >
+            <span className="theme-toggle-icon" aria-hidden="true">{nightMode ? "sun" : "moon"}</span>
+            <span>{nightMode ? "Day" : "Night"}</span>
+          </button>
           {user?.email === ADMIN_EMAIL && <Link to="/admin" className="nav-text-link">Admin</Link>}
           <button
             className="profile-button"
