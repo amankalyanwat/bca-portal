@@ -7,8 +7,7 @@ import {
   setDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { db, storage } from "../firebase";
+import { db } from "../firebase";
 import { useAuth } from "../AuthContext";
 
 const SEM_OPTIONS = [1, 2, 3, 4, 5, 6];
@@ -32,8 +31,7 @@ export default function AdminDashboard() {
   const [newTitle, setNewTitle] = useState("");
   const [newType, setNewType] = useState("Notes");
   const [newUrl, setNewUrl] = useState("");
-  const [newFile, setNewFile] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(null); // null = not uploading
+  const [editingMaterialId, setEditingMaterialId] = useState(null);
 
   // MCQ builder state
   const [mcqQuestions, setMcqQuestions] = useState([{ ...EMPTY_QUESTION }]);
@@ -78,6 +76,7 @@ export default function AdminDashboard() {
   async function openSubject(subj) {
     setActiveSubject(subj);
     setEditingMcqId(null);
+    setEditingMaterialId(null);
     setNewTitle("");
     setMcqQuestions([{ ...EMPTY_QUESTION, options: ["", "", "", ""] }]);
     setMaterialsLoading(true);
@@ -97,7 +96,7 @@ export default function AdminDashboard() {
   async function handleAddMaterial(e) {
     e.preventDefault();
     if (!newTitle.trim() || !activeSubject) return;
-    if (!newFile && !newUrl.trim()) return; // need either a file or a link
+    if (!newUrl.trim()) return;
 
     const materialsRef = collection(
       db,
@@ -108,42 +107,6 @@ export default function AdminDashboard() {
       "materials"
     );
 
-    if (newFile) {
-      // Upload the actual file to Firebase Storage, then save its download URL
-      const path = `materials/sem${semId}/${activeSubject.id}/${Date.now()}-${newFile.name}`;
-      const fileRef = storageRef(storage, path);
-      const task = uploadBytesResumable(fileRef, newFile);
-
-      setUploadProgress(0);
-      task.on(
-        "state_changed",
-        (snapshot) => {
-          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          setUploadProgress(pct);
-        },
-        (error) => {
-          setUploadProgress(null);
-          alert("Upload failed: " + error.message);
-        },
-        async () => {
-          const downloadUrl = await getDownloadURL(task.snapshot.ref);
-          await setDoc(doc(materialsRef), {
-            title: newTitle.trim(),
-            type: newType,
-            fileUrl: downloadUrl,
-          });
-          setNewTitle("");
-          setNewUrl("");
-          setNewFile(null);
-          setUploadProgress(null);
-          setStatus("File uploaded and material added.");
-          openSubject(activeSubject);
-        }
-      );
-      return;
-    }
-
-    // No file selected — fall back to a plain link (e.g. YouTube for videos)
     await setDoc(doc(materialsRef), {
       title: newTitle.trim(),
       type: newType,
@@ -152,6 +115,30 @@ export default function AdminDashboard() {
     setNewTitle("");
     setNewUrl("");
     setStatus("Material added.");
+    openSubject(activeSubject);
+  }
+
+  async function handleSaveMaterial(e) {
+    e.preventDefault();
+    if (!newTitle.trim() || !newUrl.trim() || !activeSubject || !editingMaterialId) return;
+
+    await setDoc(
+      doc(
+        db,
+        "semesters",
+        `sem${semId}`,
+        "subjects",
+        activeSubject.id,
+        "materials",
+        editingMaterialId
+      ),
+      { title: newTitle.trim(), type: newType, fileUrl: newUrl.trim() },
+      { merge: true }
+    );
+    setNewTitle("");
+    setNewUrl("");
+    setEditingMaterialId(null);
+    setStatus("Material updated.");
     openSubject(activeSubject);
   }
 
@@ -233,6 +220,7 @@ export default function AdminDashboard() {
   }
 
   function startEditingMcq(m) {
+    setEditingMaterialId(null);
     setNewType("MCQ");
     setNewTitle(m.title);
     setMcqQuestions(
@@ -243,6 +231,20 @@ export default function AdminDashboard() {
       }))
     );
     setEditingMcqId(m.id);
+  }
+
+  function startEditingMaterial(m) {
+    setEditingMcqId(null);
+    setEditingMaterialId(m.id);
+    setNewType(m.type);
+    setNewTitle(m.title || "");
+    setNewUrl(m.fileUrl || "");
+  }
+
+  function cancelEditingMaterial() {
+    setEditingMaterialId(null);
+    setNewTitle("");
+    setNewUrl("");
   }
 
   function cancelEditingMcq() {
@@ -349,6 +351,7 @@ export default function AdminDashboard() {
               <select
                 value={newType}
                 onChange={(e) => setNewType(e.target.value)}
+                disabled={!!editingMaterialId || !!editingMcqId}
                 style={{ marginBottom: "0.8rem" }}
               >
                 <option>Notes</option>
@@ -361,8 +364,8 @@ export default function AdminDashboard() {
               </select>
 
               {newType !== "MCQ" ? (
-                /* Normal materials: title + (file upload OR link) */
-                <form onSubmit={handleAddMaterial} className="admin-form">
+                /* Normal materials use an external link such as Google Drive or YouTube. */
+                <form onSubmit={editingMaterialId ? handleSaveMaterial : handleAddMaterial} className="admin-form">
                   <input
                     placeholder="Title (e.g. Unit 1 Notes)"
                     value={newTitle}
@@ -376,34 +379,21 @@ export default function AdminDashboard() {
                       onChange={(e) => setNewUrl(e.target.value)}
                     />
                   ) : (
-                    <>
-                      <input
-                        type="file"
-                        accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
-                        onChange={(e) => setNewFile(e.target.files[0] || null)}
-                      />
-                      <span className="material-meta" style={{ margin: "-0.3rem 0 0" }}>
-                        or paste a link instead ↓
-                      </span>
-                      <input
-                        placeholder="Google Drive / external link (optional if file chosen above)"
-                        value={newUrl}
-                        onChange={(e) => setNewUrl(e.target.value)}
-                        disabled={!!newFile}
-                      />
-                    </>
+                    <input
+                      placeholder="Google Drive / external link"
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                    />
                   )}
 
-                  {uploadProgress !== null && (
-                    <div className="upload-progress-track">
-                      <div className="upload-progress-fill" style={{ width: `${uploadProgress}%` }} />
-                      <span className="upload-progress-label mono">{uploadProgress}%</span>
-                    </div>
-                  )}
-
-                  <button type="submit" className="btn-primary btn-sm" disabled={uploadProgress !== null}>
-                    {uploadProgress !== null ? "Uploading…" : "Add Material"}
+                  <button type="submit" className="btn-primary btn-sm">
+                    {editingMaterialId ? "Save Changes" : "Add Material"}
                   </button>
+                  {editingMaterialId && (
+                    <button type="button" className="btn-ghost btn-sm" onClick={cancelEditingMaterial}>
+                      Cancel Edit
+                    </button>
+                  )}
                 </form>
               ) : (
                 /* MCQ builder: title + list of questions with 4 options each */
@@ -473,24 +463,39 @@ export default function AdminDashboard() {
 
               {materialsLoading && <p className="loading-text">Loading…</p>}
 
-              <div className="admin-list">
-                {materials.map((m) => (
-                  <div key={m.id} className="admin-list-item">
-                    <span className="admin-list-btn" style={{ cursor: "default" }}>
-                      {m.title} <span className="material-meta">
-                        {m.type}{m.type === "MCQ" ? ` · ${m.questions?.length || 0} Qs` : ""}
-                      </span>
-                    </span>
-                    <div style={{ display: "flex", gap: "0.4rem" }}>
-                      {m.type === "MCQ" && (
-                        <button className="admin-delete" style={{ color: "var(--sage)" }} onClick={() => startEditingMcq(m)}>
-                          Edit
-                        </button>
-                      )}
-                      <button className="admin-delete" onClick={() => handleDeleteMaterial(m.id)}>✕</button>
-                    </div>
-                  </div>
-                ))}
+              <div className="admin-material-groups">
+                {["Notes", "Video", "MCQ", "PYQ", "Assignment", "Question Answer", "Syllabus"].map((type) => {
+                  const groupedMaterials = materials.filter((m) => m.type === type);
+                  if (groupedMaterials.length === 0) return null;
+                  return (
+                    <section key={type} className="admin-material-group">
+                      <div className="admin-material-group-title">
+                        <span>{type}</span>
+                        <span className="material-meta">{groupedMaterials.length} item{groupedMaterials.length === 1 ? "" : "s"}</span>
+                      </div>
+                      <div className="admin-list">
+                        {groupedMaterials.map((m) => (
+                          <div key={m.id} className="admin-list-item">
+                            <span className="admin-list-btn" style={{ cursor: "default" }}>
+                              {m.title} <span className="material-meta">
+                                {m.type === "MCQ" ? `${m.questions?.length || 0} Qs` : ""}
+                              </span>
+                            </span>
+                            <div style={{ display: "flex", gap: "0.4rem" }}>
+                              <button
+                                className="admin-delete admin-edit"
+                                onClick={() => m.type === "MCQ" ? startEditingMcq(m) : startEditingMaterial(m)}
+                              >
+                                Edit
+                              </button>
+                              <button className="admin-delete" onClick={() => handleDeleteMaterial(m.id)}>✕</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
                 {!materialsLoading && materials.length === 0 && (
                   <p className="loading-text">No materials yet.</p>
                 )}

@@ -27,9 +27,9 @@
 6. Har material document mein fields:
    - `title`: "Unit 1 Notes"
    - `type`: "Notes" / "PYQ" / "Assignment"
-   - `fileUrl`: (PDF ka link — Google Drive share link ya Firebase Storage link)
+  - `fileUrl`: (Google Drive ya external PDF link)
 
-**Tip:** Shuru mein Google Drive PDF links use karo (Storage cost bachega) — Drive file ko "Anyone with link can view" karke uska link `fileUrl` mein daal do.
+**Tip:** Google Drive file ko "Anyone with link can view" karke uska link `fileUrl` mein daal do.
 
 ## 6. Local Run Karo
 ```bash
@@ -58,4 +58,4 @@ src/
 ## Next Steps (baad mein)
 - Admin panel banao taaki tum console kholе bina material add kar sako
 - Search bar add karo subject/material naam se
-- File upload directly app se (Firebase Storage) instead of Drive links
+- Materials external links se add kiye jaate hain (Google Drive, YouTube, etc.)
