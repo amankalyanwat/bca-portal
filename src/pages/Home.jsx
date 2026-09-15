@@ -74,6 +74,12 @@ function SkeletonCard() {
   return <div className="subject-skeleton"><span /><span /><span /></div>;
 }
 
+function getGreeting(hour) {
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 function usePremiumMotion(motionKey) {
   useEffect(() => {
     const root = document.documentElement;
@@ -139,6 +145,7 @@ function usePremiumMotion(motionKey) {
 
 export default function Home() {
   const { logout, user, allowedSemester } = useAuth();
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -146,6 +153,13 @@ export default function Home() {
   const [nightMode, setNightMode] = useState(() => localStorage.getItem("bca-night-mode") === "true");
   const semester = allowedSemester ? String(allowedSemester) : null;
   const firstName = user?.displayName?.split(" ")[0] || user?.email?.split("@")[0] || "Student";
+  const greeting = getGreeting(currentTime.getHours());
+  const dayName = currentTime.toLocaleDateString("en-US", { weekday: "long" });
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("night-mode", nightMode);
@@ -244,8 +258,8 @@ export default function Home() {
       <main className="dashboard-main">
         <section className="dashboard-intro">
           <div>
-            <span className="dashboard-kicker">Monday, keep learning</span>
-            <h1>Good morning, {firstName} <span className="wave">*</span></h1>
+            <span className="dashboard-kicker">{dayName}, keep learning</span>
+            <h1>{greeting}, {firstName} <span className="wave">*</span></h1>
             <p>Your academic workspace, thoughtfully organised.</p>
           </div>
           <button className="sign-out-link" onClick={logout}>Sign out</button>
