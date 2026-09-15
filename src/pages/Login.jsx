@@ -6,10 +6,17 @@ import { useAuth } from "../AuthContext";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    typeof window !== "undefined" ? localStorage.getItem("bca-session-lock-message") || "" : ""
+  );
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const dismissLockMessage = () => {
+    localStorage.removeItem("bca-session-lock-message");
+    setError("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,6 +42,20 @@ export default function Login() {
         <p className="login-subtitle">Sign in with the credentials issued to you.</p>
 
         <form onSubmit={handleSubmit}>
+          {error && (
+            <div className="error-box" role="alert" style={{ marginBottom: "12px" }}>
+              <p className="error-text" style={{ margin: 0 }}>{error}</p>
+              <button
+                type="button"
+                className="btn-link"
+                onClick={dismissLockMessage}
+                style={{ marginTop: "8px", background: "none", border: "none", color: "#ef4444", padding: 0, cursor: "pointer" }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           <div className="field">
             <label htmlFor="email">Email</label>
             <input

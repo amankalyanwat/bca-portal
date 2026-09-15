@@ -249,6 +249,9 @@ export default function Home() {
           {profileOpen && (
             <div className="profile-menu" role="menu">
               <span className="profile-menu-email">{user?.email}</span>
+              <Link to="/profile" className="profile-menu-link" role="menuitem" onClick={() => setProfileOpen(false)}>
+                Profile
+              </Link>
               <button type="button" onClick={logout} role="menuitem">Sign out</button>
             </div>
           )}

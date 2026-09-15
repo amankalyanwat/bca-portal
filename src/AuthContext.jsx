@@ -5,7 +5,20 @@ import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firest
 import { auth, db } from "./firebase";
 
 const DEVICE_STORAGE_KEY = "bca-material-device-id";
+const SESSION_LOCK_MESSAGE_KEY = "bca-session-lock-message";
 const AuthContext = createContext(null);
+
+function setSessionLockMessage(message) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SESSION_LOCK_MESSAGE_KEY, message);
+  }
+}
+
+function clearSessionLockMessage() {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(SESSION_LOCK_MESSAGE_KEY);
+  }
+}
 
 function getOrCreateDeviceId() {
   if (typeof window === "undefined") {
@@ -107,6 +120,7 @@ export function AuthProvider({ children }) {
       const activeDeviceId = profileData.activeDeviceId || profileData.deviceId;
 
       if (activeDeviceId && activeDeviceId !== deviceId) {
+        setSessionLockMessage("This account is already active on another device. You have been signed out.");
         await signOut(auth);
         setUser(null);
         setAllowedSemester(null);
@@ -142,15 +156,21 @@ export function AuthProvider({ children }) {
     const deviceId = getOrCreateDeviceId();
 
     try {
+      clearSessionLockMessage();
       await activateDeviceForUser(userCredential.user.uid, deviceId);
       return userCredential;
     } catch (error) {
+      setSessionLockMessage(
+        "This account is already active on another device. Please sign out from that device first."
+      );
       await signOut(auth);
       throw error;
     }
   };
 
   const logout = async () => {
+    clearSessionLockMessage();
+
     if (user) {
       const profileRef = doc(db, "users", user.uid);
       await setDoc(profileRef, { activeDeviceId: null }, { merge: true });

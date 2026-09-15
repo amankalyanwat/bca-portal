@@ -15,6 +15,7 @@ import McqAttempt from "./pages/McqAttempt";
 import QaMaterials from "./pages/QaMaterials";
 import AssignmentMaterials from "./pages/AssignmentMaterials";
 import PdfViewer from "./pages/PdfViewer";
+import ProfilePage from "./pages/Profile";
 
 
 export default function App() {
@@ -28,6 +29,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
               </ProtectedRoute>
             }
           />
