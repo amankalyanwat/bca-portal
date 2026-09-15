@@ -19,7 +19,9 @@ export default function Login() {
       await login(email, password);
       navigate("/");
     } catch (err) {
-      setError("Invalid email or password");
+      setError(
+        err?.message || "Invalid email or password. Please contact admin if this device is already in use."
+      );
     } finally {
       setLoading(false);
     }

@@ -1,10 +1,39 @@
 // src/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
+const DEVICE_STORAGE_KEY = "bca-material-device-id";
 const AuthContext = createContext(null);
+
+function getOrCreateDeviceId() {
+  if (typeof window === "undefined") {
+    return "server-device";
+  }
+
+  let deviceId = localStorage.getItem(DEVICE_STORAGE_KEY);
+
+  if (!deviceId) {
+    deviceId = window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : `device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(DEVICE_STORAGE_KEY, deviceId);
+  }
+
+  return deviceId;
+}
+
+async function ensureUserProfile(uid) {
+  const profileRef = doc(db, "users", uid);
+  const profileSnap = await getDoc(profileRef);
+
+  if (!profileSnap.exists()) {
+    throw new Error("User profile is missing. Please contact the admin.");
+  }
+
+  return profileSnap;
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -12,38 +41,95 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Firebase automatically checks if user is already logged in (persisted session)
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-
-      if (currentUser) {
-        // Fetch this user's allowed semester from Firestore "users" collection
-        const profileRef = doc(db, "users", currentUser.uid);
-        try {
-          const profileSnap = await getDoc(profileRef);
-          if (profileSnap.exists()) {
-            setAllowedSemester(profileSnap.data().semester);
-          } else {
-            setAllowedSemester(null); // no profile = no access
-          }
-        } catch (error) {
-          console.error("Unable to load the user profile:", error);
-          setAllowedSemester(null);
-        }
-      } else {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        setUser(null);
         setAllowedSemester(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const profileSnap = await ensureUserProfile(currentUser.uid);
+        setUser(currentUser);
+        setAllowedSemester(profileSnap.data().semester ?? null);
+      } catch (error) {
+        console.error("Unable to load the user profile:", error);
+        setUser(null);
+        setAllowedSemester(null);
+        setLoading(false);
+        return;
       }
 
       setLoading(false);
     });
-    return unsubscribe;
+
+    return unsubscribeAuth;
   }, []);
 
-  const login = (email, password) => {
-    return signInWithEmailAndPassword(auth, email, password);
+  useEffect(() => {
+    if (!user) {
+      return undefined;
+    }
+
+    const deviceId = getOrCreateDeviceId();
+    const profileRef = doc(db, "users", user.uid);
+
+    const unsubscribeProfile = onSnapshot(profileRef, async (profileSnap) => {
+      if (!profileSnap.exists()) {
+        return;
+      }
+
+      const profileData = profileSnap.data();
+      const activeDeviceId = profileData.activeDeviceId || profileData.deviceId;
+
+      if (activeDeviceId && activeDeviceId !== deviceId) {
+        await signOut(auth);
+        setUser(null);
+        setAllowedSemester(null);
+        return;
+      }
+
+      setAllowedSemester(profileData.semester ?? null);
+    });
+
+    return unsubscribeProfile;
+  }, [user]);
+
+  const login = async (email, password) => {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const deviceId = getOrCreateDeviceId();
+    const profileRef = doc(db, "users", userCredential.user.uid);
+
+    try {
+      const profileSnap = await ensureUserProfile(userCredential.user.uid);
+      const profileData = profileSnap.data();
+      const previousDeviceId = profileData.activeDeviceId || profileData.deviceId;
+
+      await setDoc(
+        profileRef,
+        {
+          activeDeviceId: deviceId,
+          deviceId,
+          lastLoginAt: new Date().toISOString(),
+          previousDeviceId: previousDeviceId || null,
+        },
+        { merge: true }
+      );
+
+      return userCredential;
+    } catch (error) {
+      await signOut(auth);
+      throw error;
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (user) {
+      const profileRef = doc(db, "users", user.uid);
+      await setDoc(profileRef, { activeDeviceId: null }, { merge: true });
+    }
+
     return signOut(auth);
   };
 
