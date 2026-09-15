@@ -1,7 +1,7 @@
 // src/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
 const DEVICE_STORAGE_KEY = "bca-material-device-id";
@@ -32,7 +32,30 @@ async function ensureUserProfile(uid) {
     throw new Error("User profile is missing. Please contact the admin.");
   }
 
-  return profileSnap;
+  return { profileRef, profileSnap };
+}
+
+async function activateDeviceForUser(uid, deviceId) {
+  const { profileRef } = await ensureUserProfile(uid);
+
+  await runTransaction(db, async (transaction) => {
+    const profileSnap = await transaction.get(profileRef);
+
+    if (!profileSnap.exists()) {
+      throw new Error("User profile is missing. Please contact the admin.");
+    }
+
+    const profileData = profileSnap.data();
+    const previousDeviceId = profileData.activeDeviceId || profileData.deviceId || null;
+
+    transaction.update(profileRef, {
+      activeDeviceId: deviceId,
+      deviceId,
+      lastLoginAt: new Date().toISOString(),
+      previousDeviceId,
+      lastSeenAt: new Date().toISOString(),
+    });
+  });
 }
 
 export function AuthProvider({ children }) {
@@ -50,7 +73,7 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const profileSnap = await ensureUserProfile(currentUser.uid);
+        const { profileSnap } = await ensureUserProfile(currentUser.uid);
         setUser(currentUser);
         setAllowedSemester(profileSnap.data().semester ?? null);
       } catch (error) {
@@ -96,27 +119,30 @@ export function AuthProvider({ children }) {
     return unsubscribeProfile;
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      return undefined;
+    }
+
+    const handleBeforeUnload = async () => {
+      try {
+        const profileRef = doc(db, "users", user.uid);
+        await setDoc(profileRef, { activeDeviceId: null }, { merge: true });
+      } catch (error) {
+        console.warn("Unable to clear session on unload:", error);
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [user]);
+
   const login = async (email, password) => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const deviceId = getOrCreateDeviceId();
-    const profileRef = doc(db, "users", userCredential.user.uid);
 
     try {
-      const profileSnap = await ensureUserProfile(userCredential.user.uid);
-      const profileData = profileSnap.data();
-      const previousDeviceId = profileData.activeDeviceId || profileData.deviceId;
-
-      await setDoc(
-        profileRef,
-        {
-          activeDeviceId: deviceId,
-          deviceId,
-          lastLoginAt: new Date().toISOString(),
-          previousDeviceId: previousDeviceId || null,
-        },
-        { merge: true }
-      );
-
+      await activateDeviceForUser(userCredential.user.uid, deviceId);
       return userCredential;
     } catch (error) {
       await signOut(auth);
