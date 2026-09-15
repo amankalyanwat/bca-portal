@@ -7,10 +7,23 @@ service cloud.firestore {
         && request.auth.token.email == "amankalyanwat@gmail.com";
     }
 
-    // Har user apna khud ka profile doc padh sake (semester check ke liye)
+    // Har user apna khud ka profile doc padh sake, aur apne session ka device status update kar sakta hai
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // sirf tum Console se add/edit karoge
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && (
+          request.resource.data.activeDeviceId is string
+          || request.resource.data.activeDeviceId == null
+          || request.resource.data.deviceId is string
+          || request.resource.data.deviceId == null
+          || request.resource.data.lastLoginAt is string
+          || request.resource.data.lastLoginAt == null
+          || request.resource.data.lastSeenAt is string
+          || request.resource.data.lastSeenAt == null
+          || request.resource.data.previousDeviceId is string
+          || request.resource.data.previousDeviceId == null
+        );
     }
 
     // Students: sirf apne assigned semester ka data padh sake
