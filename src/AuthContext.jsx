@@ -1,8 +1,9 @@
 // src/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "./firebase";
 
 const DEVICE_STORAGE_KEY = "bca-material-device-id";
 const SESSION_LOCK_MESSAGE_KEY = "bca-session-lock-message";
@@ -50,25 +51,19 @@ async function ensureUserProfile(uid) {
 
 async function activateDeviceForUser(uid, deviceId) {
   const { profileRef } = await ensureUserProfile(uid);
+  const previousDeviceId = (await getDoc(profileRef)).data()?.activeDeviceId || (await getDoc(profileRef)).data()?.deviceId || null;
 
-  await runTransaction(db, async (transaction) => {
-    const profileSnap = await transaction.get(profileRef);
-
-    if (!profileSnap.exists()) {
-      throw new Error("User profile is missing. Please contact the admin.");
-    }
-
-    const profileData = profileSnap.data();
-    const previousDeviceId = profileData.activeDeviceId || profileData.deviceId || null;
-
-    transaction.update(profileRef, {
+  await setDoc(
+    profileRef,
+    {
       activeDeviceId: deviceId,
       deviceId,
       lastLoginAt: new Date().toISOString(),
       previousDeviceId,
       lastSeenAt: new Date().toISOString(),
-    });
-  });
+    },
+    { merge: true }
+  );
 }
 
 export function AuthProvider({ children }) {
@@ -157,14 +152,19 @@ export function AuthProvider({ children }) {
 
     try {
       clearSessionLockMessage();
+
+      const registerDevice = httpsCallable(functions, "registerDeviceSession");
+      await registerDevice({ deviceId });
       await activateDeviceForUser(userCredential.user.uid, deviceId);
       return userCredential;
     } catch (error) {
-      setSessionLockMessage(
-        "This account is already active on another device. Please sign out from that device first."
-      );
+      const message =
+        error?.message ||
+        "This account is already active on another device. Please sign out from that device first.";
+
+      setSessionLockMessage(message);
       await signOut(auth);
-      throw error;
+      throw new Error(message);
     }
   };
 
@@ -174,6 +174,13 @@ export function AuthProvider({ children }) {
     if (user) {
       const profileRef = doc(db, "users", user.uid);
       await setDoc(profileRef, { activeDeviceId: null }, { merge: true });
+
+      try {
+        const clearSession = httpsCallable(functions, "clearDeviceSession");
+        await clearSession();
+      } catch (error) {
+        console.warn("Unable to clear server-side session:", error);
+      }
     }
 
     return signOut(auth);
