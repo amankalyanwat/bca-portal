@@ -566,6 +566,16 @@ h1, h2, h3, p { margin-top: 0; }
 .profile-menu button:hover { background: #ffdfe3; }
 .profile-menu button:active { transform: scale(.97); }
 
+@media (max-width: 560px) {
+  .profile-menu {
+    position: fixed;
+    top: auto;
+    right: 14px;
+    bottom: 86px;
+    z-index: 100;
+  }
+}
+
 /* Premium 3D motion layer: remove .motion-ready to disable scroll/tilt behavior. */
 @keyframes dashboard-nav-in {
   from { opacity: 0; transform: translate3d(0, -18px, 0); }
