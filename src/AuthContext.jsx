@@ -6,7 +6,18 @@ import { auth, db } from "./firebase";
 
 const DEVICE_STORAGE_KEY = "bca-material-device-id";
 const SESSION_LOCK_MESSAGE_KEY = "bca-session-lock-message";
+const LOGIN_TIMEOUT_MS = 15000;
 const AuthContext = createContext(null);
+
+function withTimeout(promise, message) {
+  let timeoutId;
+
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), LOGIN_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
 
 function setSessionLockMessage(message) {
   if (typeof window !== "undefined") {
@@ -49,19 +60,23 @@ async function ensureUserProfile(uid) {
 }
 
 async function activateDeviceForUser(uid, deviceId) {
-  const { profileRef } = await ensureUserProfile(uid);
-  const previousDeviceId = (await getDoc(profileRef)).data()?.activeDeviceId || (await getDoc(profileRef)).data()?.deviceId || null;
+  const { profileRef, profileSnap } = await ensureUserProfile(uid);
+  const profileData = profileSnap.data();
+  const previousDeviceId = profileData?.activeDeviceId || profileData?.deviceId || null;
 
-  await setDoc(
-    profileRef,
-    {
-      activeDeviceId: deviceId,
-      deviceId,
-      lastLoginAt: new Date().toISOString(),
-      previousDeviceId,
-      lastSeenAt: new Date().toISOString(),
-    },
-    { merge: true }
+  await withTimeout(
+    setDoc(
+      profileRef,
+      {
+        activeDeviceId: deviceId,
+        deviceId,
+        lastLoginAt: new Date().toISOString(),
+        previousDeviceId,
+        lastSeenAt: new Date().toISOString(),
+      },
+      { merge: true }
+    ),
+    "Profile update timed out. Check your internet connection and try again."
   );
 }
 
@@ -146,7 +161,10 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   const login = async (email, password) => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await withTimeout(
+      signInWithEmailAndPassword(auth, email, password),
+      "Sign-in timed out. Check your internet connection and try again."
+    );
     const deviceId = getOrCreateDeviceId();
 
     try {
@@ -155,6 +173,7 @@ export function AuthProvider({ children }) {
       await activateDeviceForUser(userCredential.user.uid, deviceId);
       return userCredential;
     } catch (error) {
+      console.error("Login failed:", error);
       const message =
         error?.message ||
         "This account is already active on another device. Please sign out from that device first.";
