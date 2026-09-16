@@ -2,12 +2,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { auth, db, functions } from "./firebase";
+import { auth, db } from "./firebase";
 
 const DEVICE_STORAGE_KEY = "bca-material-device-id";
 const SESSION_LOCK_MESSAGE_KEY = "bca-session-lock-message";
-const isDevelopment = import.meta.env.DEV;
 const AuthContext = createContext(null);
 
 function setSessionLockMessage(message) {
@@ -154,29 +152,6 @@ export function AuthProvider({ children }) {
     try {
       clearSessionLockMessage();
 
-      if (!isDevelopment) {
-        try {
-          const registerDevice = httpsCallable(functions, "registerDeviceSession");
-          await registerDevice({ deviceId });
-        } catch (backendError) {
-          const message = String(backendError?.message || "").toLowerCase();
-          const isBackendUnavailable =
-            backendError?.code === "functions/internal" ||
-            backendError?.code === "functions/unavailable" ||
-            message.includes("not found") ||
-            message.includes("deploy") ||
-            message.includes("blaze") ||
-            message.includes("cloud functions") ||
-            message.includes("internal");
-
-          if (!isBackendUnavailable) {
-            throw backendError;
-          }
-
-          console.warn("Device-session backend is not available yet. Falling back to local login flow.", backendError);
-        }
-      }
-
       await activateDeviceForUser(userCredential.user.uid, deviceId);
       return userCredential;
     } catch (error) {
@@ -196,15 +171,6 @@ export function AuthProvider({ children }) {
     if (user) {
       const profileRef = doc(db, "users", user.uid);
       await setDoc(profileRef, { activeDeviceId: null }, { merge: true });
-
-      if (!isDevelopment) {
-        try {
-          const clearSession = httpsCallable(functions, "clearDeviceSession");
-          await clearSession();
-        } catch (error) {
-          console.warn("Unable to clear server-side session:", error);
-        }
-      }
     }
 
     return signOut(auth);
