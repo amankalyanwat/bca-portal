@@ -532,38 +532,48 @@ h1, h2, h3, p { margin-top: 0; }
   right: 0;
   z-index: 30;
   display: flex;
-  min-width: 190px;
+  min-width: 214px;
   flex-direction: column;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255,255,255,.96);
+  gap: 5px;
+  border: 1px solid rgba(255,255,255,.92);
+  border-radius: 17px;
+  background: rgba(255,255,255,.9);
   box-shadow: var(--shadow-lg);
-  padding: 13px;
+  padding: 9px;
   backdrop-filter: blur(16px);
+  transform-origin: top right;
+  animation: profile-menu-in .18s var(--ease-premium) both;
 }
 .profile-menu-email {
   overflow: hidden;
-  border-bottom: 1px solid var(--line);
+  margin: 1px 2px 4px;
+  border-bottom: 1px solid #edf0f5;
   color: var(--muted);
-  font-size: .7rem;
-  padding: 2px 3px 10px;
+  font-size: .67rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  padding: 4px 6px 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.profile-menu-link,
 .profile-menu button {
   border: 0;
-  border-radius: 8px;
-  background: var(--red-soft);
-  color: var(--red);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--ink);
   cursor: pointer;
-  font-size: .74rem;
+  font-family: inherit;
+  font-size: .76rem;
   font-weight: 800;
-  padding: 9px 10px;
+  padding: 11px 12px;
   text-align: left;
-  transition: background .2s var(--ease-premium), transform .15s var(--ease-premium);
+  text-decoration: none;
+  transition: background .2s var(--ease-premium), color .2s var(--ease-premium), transform .15s var(--ease-premium);
 }
-.profile-menu button:hover { background: #ffdfe3; }
+.profile-menu-link:hover,
+.profile-menu button:hover { background: var(--red-soft); color: var(--red); }
+.profile-menu-link:active,
 .profile-menu button:active { transform: scale(.97); }
 
 @media (max-width: 560px) {
@@ -571,9 +581,16 @@ h1, h2, h3, p { margin-top: 0; }
     position: fixed;
     top: auto;
     right: 14px;
-    bottom: 86px;
+    bottom: calc(86px + env(safe-area-inset-bottom));
     z-index: 100;
+    width: min(214px, calc(100vw - 28px));
+    min-width: 0;
   }
+}
+
+@keyframes profile-menu-in {
+  from { opacity: 0; transform: translateY(5px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Premium 3D motion layer: remove .motion-ready to disable scroll/tilt behavior. */
