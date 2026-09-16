@@ -515,7 +515,13 @@ h1, h2, h3, p { margin-top: 0; }
   }
   .profile-button { min-height: 42px; }
   .avatar-button { width: 38px; height: 38px; }
-  .profile-menu { top: auto; right: 0; bottom: 52px; }
+  .profile-menu {
+    position: fixed;
+    top: auto;
+    right: 14px;
+    bottom: 86px;
+    z-index: 100;
+  }
 }
 
 /* Responsive profile menu and mobile admin access */
