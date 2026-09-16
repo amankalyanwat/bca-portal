@@ -5,8 +5,11 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 const db = getFirestore();
+const callableOptions = {
+  cors: ["https://bca-portal-bca17.vercel.app", "http://localhost:5173"],
+};
 
-exports.registerDeviceSession = onCall(async (request) => {
+exports.registerDeviceSession = onCall(callableOptions, async (request) => {
   const uid = request.auth?.uid;
   const deviceId = request.data?.deviceId;
 
@@ -49,7 +52,7 @@ exports.registerDeviceSession = onCall(async (request) => {
   return { ok: true };
 });
 
-exports.clearDeviceSession = onCall(async (request) => {
+exports.clearDeviceSession = onCall(callableOptions, async (request) => {
   const uid = request.auth?.uid;
 
   if (!uid) {

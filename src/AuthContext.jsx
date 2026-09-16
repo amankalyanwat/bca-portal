@@ -153,8 +153,27 @@ export function AuthProvider({ children }) {
     try {
       clearSessionLockMessage();
 
-      const registerDevice = httpsCallable(functions, "registerDeviceSession");
-      await registerDevice({ deviceId });
+      try {
+        const registerDevice = httpsCallable(functions, "registerDeviceSession");
+        await registerDevice({ deviceId });
+      } catch (backendError) {
+        const message = String(backendError?.message || "").toLowerCase();
+        const isBackendUnavailable =
+          backendError?.code === "functions/internal" ||
+          backendError?.code === "functions/unavailable" ||
+          message.includes("not found") ||
+          message.includes("deploy") ||
+          message.includes("blaze") ||
+          message.includes("cloud functions") ||
+          message.includes("internal");
+
+        if (!isBackendUnavailable) {
+          throw backendError;
+        }
+
+        console.warn("Device-session backend is not available yet. Falling back to local login flow.", backendError);
+      }
+
       await activateDeviceForUser(userCredential.user.uid, deviceId);
       return userCredential;
     } catch (error) {
