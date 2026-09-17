@@ -48,19 +48,29 @@ function getOrCreateDeviceId() {
   return deviceId;
 }
 
-async function ensureUserProfile(uid) {
+async function ensureUserProfile(uid, fallbackUser = null) {
   const profileRef = doc(db, "users", uid);
   const profileSnap = await getDoc(profileRef);
 
   if (!profileSnap.exists()) {
-    throw new Error("User profile is missing. Please contact the admin.");
+    const profileData = {
+      email: fallbackUser?.email || "",
+      name: fallbackUser?.displayName || "",
+      semester: null,
+      role: "student",
+      createdAt: new Date().toISOString(),
+    };
+
+    await setDoc(profileRef, profileData, { merge: true });
+    const freshSnap = await getDoc(profileRef);
+    return { profileRef, profileSnap: freshSnap };
   }
 
   return { profileRef, profileSnap };
 }
 
-async function activateDeviceForUser(uid, deviceId) {
-  const { profileRef, profileSnap } = await ensureUserProfile(uid);
+async function activateDeviceForUser(uid, deviceId, fallbackUser = null) {
+  const { profileRef, profileSnap } = await ensureUserProfile(uid, fallbackUser);
   const profileData = profileSnap.data();
   const previousDeviceId = profileData?.activeDeviceId || profileData?.deviceId || null;
 
@@ -95,7 +105,7 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const { profileSnap } = await ensureUserProfile(currentUser.uid);
+        const { profileSnap } = await ensureUserProfile(currentUser.uid, currentUser);
         setUser(currentUser);
         setAllowedSemester(profileSnap.data().semester ?? null);
       } catch (error) {
@@ -170,7 +180,7 @@ export function AuthProvider({ children }) {
     try {
       clearSessionLockMessage();
 
-      await activateDeviceForUser(userCredential.user.uid, deviceId);
+      await activateDeviceForUser(userCredential.user.uid, deviceId, userCredential.user);
       return userCredential;
     } catch (error) {
       console.error("Login failed:", error);
