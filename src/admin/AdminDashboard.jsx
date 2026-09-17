@@ -7,7 +7,8 @@ import {
   setDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { db } from "../firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../firebase";
 import { useAuth } from "../AuthContext";
 
 const SEM_OPTIONS = [1, 2, 3, 4, 5, 6];
@@ -17,6 +18,11 @@ const EMPTY_QUESTION = { question: "", options: ["", "", "", ""], correct: 0 };
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
   const [semId, setSemId] = useState(3);
+
+  const [newStudentName, setNewStudentName] = useState("");
+  const [newStudentEmail, setNewStudentEmail] = useState("");
+  const [newStudentPassword, setNewStudentPassword] = useState("");
+  const [newStudentSemester, setNewStudentSemester] = useState(1);
 
   // Subjects state
   const [subjects, setSubjects] = useState([]);
@@ -38,6 +44,85 @@ export default function AdminDashboard() {
   const [editingMcqId, setEditingMcqId] = useState(null); // null = creating new set, else editing this doc id
 
   const [status, setStatus] = useState("");
+  const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+
+  async function loadStudents() {
+    setStudentsLoading(true);
+    const snap = await getDocs(collection(db, "users"));
+    setStudents(
+      snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || a.email || a.id).localeCompare(b.name || b.email || b.id))
+    );
+    setStudentsLoading(false);
+  }
+
+  useEffect(() => {
+    loadStudents();
+  }, []);
+
+  async function handleCreateStudent(e) {
+    e.preventDefault();
+
+    const email = newStudentEmail.trim();
+    const password = newStudentPassword.trim();
+    const name = newStudentName.trim();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setStatus("Enter a valid student email.");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setStatus("Password must be at least 6 characters long.");
+      return;
+    }
+
+    try {
+      const createStudent = httpsCallable(functions, "createStudentAccount");
+      const result = await createStudent({
+        name,
+        email,
+        password,
+        semester: Number(newStudentSemester),
+      });
+
+      setStatus(
+        `Student created: ${result.data.email} (Semester ${result.data.semester})`
+      );
+      setNewStudentName("");
+      setNewStudentEmail("");
+      setNewStudentPassword("");
+      setNewStudentSemester(1);
+    } catch (error) {
+      setStatus(error?.message || "Unable to create student account.");
+    }
+  }
+
+  async function handleUpdateStudentSemester(uid, nextSemester) {
+    try {
+      const updateStudent = httpsCallable(functions, "updateStudentSemester");
+      await updateStudent({ uid, semester: Number(nextSemester) });
+      setStatus("Student semester updated.");
+      await loadStudents();
+    } catch (error) {
+      setStatus(error?.message || "Unable to update semester.");
+    }
+  }
+
+  async function handleDeleteStudent(uid) {
+    if (!confirm("Delete this student account and profile?")) return;
+
+    try {
+      const deleteStudent = httpsCallable(functions, "deleteStudentAccount");
+      await deleteStudent({ uid });
+      setStatus("Student deleted.");
+      await loadStudents();
+    } catch (error) {
+      setStatus(error?.message || "Unable to delete student.");
+    }
+  }
 
   async function loadSubjects() {
     setSubjectsLoading(true);
@@ -286,6 +371,72 @@ export default function AdminDashboard() {
       {status && (
         <div className="admin-status mono">▸ {status}</div>
       )}
+
+      <div className="admin-panel" style={{ marginBottom: "1.25rem" }}>
+        <span className="section-label">Add Student</span>
+
+        <form onSubmit={handleCreateStudent} className="admin-form">
+          <input
+            placeholder="Student name"
+            value={newStudentName}
+            onChange={(e) => setNewStudentName(e.target.value)}
+          />
+          <input
+            type="email"
+            placeholder="Student email"
+            value={newStudentEmail}
+            onChange={(e) => setNewStudentEmail(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Initial password"
+            value={newStudentPassword}
+            onChange={(e) => setNewStudentPassword(e.target.value)}
+          />
+          <select
+            value={newStudentSemester}
+            onChange={(e) => setNewStudentSemester(Number(e.target.value))}
+          >
+            {SEM_OPTIONS.map((s) => (
+              <option key={s} value={s}>Semester {s}</option>
+            ))}
+          </select>
+          <button type="submit" className="btn-primary btn-sm">Create Student</button>
+        </form>
+      </div>
+
+      <div className="admin-panel" style={{ marginBottom: "1.25rem" }}>
+        <span className="section-label">Students</span>
+
+        {studentsLoading ? (
+          <p className="loading-text">Loading students…</p>
+        ) : (
+          <div className="admin-list">
+            {students.length === 0 ? (
+              <p className="loading-text">No students yet.</p>
+            ) : (
+              students.map((student) => (
+                <div key={student.id} className="admin-list-item" style={{ alignItems: "center" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600 }}>{student.name || "Unnamed student"}</div>
+                    <div className="material-meta">{student.email || student.id}</div>
+                  </div>
+                  <select
+                    value={student.semester ?? 1}
+                    onChange={(e) => handleUpdateStudentSemester(student.id, e.target.value)}
+                    style={{ width: "110px" }}
+                  >
+                    {SEM_OPTIONS.map((s) => (
+                      <option key={s} value={s}>Sem {s}</option>
+                    ))}
+                  </select>
+                  <button className="admin-delete" onClick={() => handleDeleteStudent(student.id)}>✕</button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Semester selector */}
       <span className="section-label">Semester</span>

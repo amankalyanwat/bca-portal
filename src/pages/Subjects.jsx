@@ -5,6 +5,27 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../AuthContext";
 
+const SUBJECT_ICON_MAP = {
+  java: "/assets/java.png",
+  os: "/assets/os.png",
+  multimedia: "/assets/multimedia.png",
+  iks: "/assets/iks.png",
+  english: "/assets/english.png",
+  ecommerce: "/assets/ecommerce.png",
+};
+
+function getSubjectIcon(subject) {
+  if (subject?.icon) {
+    return subject.icon;
+  }
+
+  const key = (subject?.name || subject?.id || "").toLowerCase().trim();
+  if (!key) return "/assets/java.png";
+
+  const directMatch = Object.keys(SUBJECT_ICON_MAP).find((name) => key.includes(name));
+  return SUBJECT_ICON_MAP[directMatch] || "/assets/java.png";
+}
+
 export default function Subjects() {
   const { semId } = useParams();
   const { allowedSemester } = useAuth();
@@ -47,8 +68,8 @@ export default function Subjects() {
           >
             <div className="subject-icon">
               <img
-                src={subj.icon || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"}
-                alt={`${subj.name} icon`}
+                src={getSubjectIcon(subj)}
+                alt={`${subj.name || subj.id} icon`}
               />
             </div>
             <div className="subject-info">

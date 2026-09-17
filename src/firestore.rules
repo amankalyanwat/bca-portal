@@ -7,48 +7,52 @@ service cloud.firestore {
         && request.auth.token.email == "amankalyanwat@gmail.com";
     }
 
-    // Har user apna profile padh sake aur sirf session fields update kar sake
+    // Har user apna profile padh sake; admin sab users ko view/update kar sake
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          "activeDeviceId",
-          "deviceId",
-          "lastLoginAt",
-          "lastSeenAt",
-          "previousDeviceId"
-        ])
-        && (
-          !request.resource.data.keys().hasAny([
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && (
+        (
+          request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "activeDeviceId",
             "deviceId",
             "lastLoginAt",
             "lastSeenAt",
             "previousDeviceId"
           ])
-          || (
-            request.resource.data.activeDeviceId is string
-            || request.resource.data.activeDeviceId == null
+          && (
+            !request.resource.data.keys().hasAny([
+              "activeDeviceId",
+              "deviceId",
+              "lastLoginAt",
+              "lastSeenAt",
+              "previousDeviceId"
+            ])
+            || (
+              request.resource.data.activeDeviceId is string
+              || request.resource.data.activeDeviceId == null
+            )
+          )
+          && (
+            !request.resource.data.keys().hasAny(["deviceId"])
+            || request.resource.data.deviceId is string
+          )
+          && (
+            !request.resource.data.keys().hasAny(["lastLoginAt"])
+            || request.resource.data.lastLoginAt is string
+          )
+          && (
+            !request.resource.data.keys().hasAny(["lastSeenAt"])
+            || request.resource.data.lastSeenAt is string
+          )
+          && (
+            !request.resource.data.keys().hasAny(["previousDeviceId"])
+            || request.resource.data.previousDeviceId is string
+            || request.resource.data.previousDeviceId == null
           )
         )
-        && (
-          !request.resource.data.keys().hasAny(["deviceId"])
-          || request.resource.data.deviceId is string
-        )
-        && (
-          !request.resource.data.keys().hasAny(["lastLoginAt"])
-          || request.resource.data.lastLoginAt is string
-        )
-        && (
-          !request.resource.data.keys().hasAny(["lastSeenAt"])
-          || request.resource.data.lastSeenAt is string
-        )
-        && (
-          !request.resource.data.keys().hasAny(["previousDeviceId"])
-          || request.resource.data.previousDeviceId is string
-          || request.resource.data.previousDeviceId == null
-        );
+        || isAdmin()
+      );
     }
 
     // Students: sirf apne assigned semester ka data padh sake
