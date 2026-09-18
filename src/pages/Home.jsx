@@ -87,6 +87,30 @@ function StatCard({ label, value, detail, tone }) {
   );
 }
 
+function PlanCard({ name, price, description, features, featured, actionLabel, href }) {
+  return (
+    <div className={`plan-card ${featured ? "plan-card-featured" : ""}`}>
+      <div className="plan-header">
+        <span className="plan-name">{name}</span>
+        {featured && <span className="plan-badge">Popular</span>}
+      </div>
+      <div className="plan-price">
+        {price}
+        <span>/month</span>
+      </div>
+      <p className="plan-description">{description}</p>
+      <ul className="plan-features">
+        {features.map((feature) => (
+          <li key={feature}>{feature}</li>
+        ))}
+      </ul>
+      <a href={href} className={`plan-button ${featured ? "plan-button-featured" : ""}`}>
+        {actionLabel}
+      </a>
+    </div>
+  );
+}
+
 function SkeletonCard() {
   return <div className="subject-skeleton"><span /><span /><span /></div>;
 }
@@ -168,10 +192,15 @@ export default function Home() {
   const [loadError, setLoadError] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [nightMode, setNightMode] = useState(() => localStorage.getItem("bca-night-mode") === "true");
+  const [premiumTier, setPremiumTier] = useState(() => {
+    const tier = localStorage.getItem("bca-premium-demo");
+    return tier === "semester" || tier === "yearly" || tier === "true" ? tier : "free";
+  });
   const semester = allowedSemester ? String(allowedSemester) : null;
   const firstName = user?.displayName?.split(" ")[0] || user?.email?.split("@")[0] || "Student";
   const greeting = getGreeting(currentTime.getHours());
   const dayName = currentTime.toLocaleDateString("en-US", { weekday: "long" });
+  const isPremium = premiumTier !== "free";
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setCurrentTime(new Date()), 60_000);
@@ -182,6 +211,17 @@ export default function Home() {
     document.documentElement.classList.toggle("night-mode", nightMode);
     localStorage.setItem("bca-night-mode", String(nightMode));
   }, [nightMode]);
+
+  useEffect(() => {
+    const syncPremiumState = () => {
+      const tier = localStorage.getItem("bca-premium-demo");
+      setPremiumTier(tier === "semester" || tier === "yearly" || tier === "true" ? tier : "free");
+    };
+
+    syncPremiumState();
+    window.addEventListener("storage", syncPremiumState);
+    return () => window.removeEventListener("storage", syncPremiumState);
+  }, []);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -297,6 +337,84 @@ export default function Home() {
           <div className="hero-meta"><span>01</span><span>2026 / 27</span></div>
         </section>
 
+        <div className={`upgrade-banner ${isPremium ? "upgrade-banner-premium" : ""}`}>
+          {isPremium
+            ? <strong>Premium active:</strong>
+            : <strong>Free access:</strong>} {isPremium ? `You unlocked ${premiumTier === "yearly" ? "Yearly" : "Semester"} premium.` : "Start free and upgrade when you want more value."}
+          {!isPremium && <Link to="/pricing">View pricing</Link>}
+        </div>
+
+        <section className="startup-panel" id="pricing">
+          <div className="section-heading">
+            <div>
+              <span className="dashboard-kicker">BCA startup</span>
+              <h2>Free for students. Premium when they want more.</h2>
+            </div>
+            <Link to={mcqPath} className="view-all">Try free sample <span>-&gt;</span></Link>
+          </div>
+
+          <div className="startup-grid">
+            <div className="startup-copy">
+              <h3>Built for students who want smarter prep.</h3>
+              <p>
+                Start free with notes and beginner MCQs. Upgrade when a student wants full semester access,
+                advanced mock tests, and performance tracking.
+              </p>
+              <ul>
+                <li>Free notes and sample practice</li>
+                <li>Semester-wise premium packs</li>
+                <li>Quick revision and mock tests</li>
+                <li>Strong retention through repeat practice</li>
+              </ul>
+            </div>
+
+            <div className="plans-grid">
+              <PlanCard
+                name="Free"
+                price="₹0"
+                description="Best for quick access and sample practice."
+                features={[
+                  "Basic subject access",
+                  "Limited notes",
+                  "Starter MCQ sample",
+                  "No payment required"
+                ]}
+                actionLabel="Start free"
+                href={mcqPath}
+              />
+
+              <PlanCard
+                name="Semester"
+                price="₹299"
+                description="Perfect for students who want full subject preparation."
+                features={[
+                  "All notes for current semester",
+                  "Full MCQ test library",
+                  "Fast revision support",
+                  "Subject-wise practice"
+                ]}
+                featured={true}
+                actionLabel="Unlock semester"
+                href="#pricing"
+              />
+
+              <PlanCard
+                name="Yearly"
+                price="₹799"
+                description="Best value for long-term prep and consistency."
+                features={[
+                  "All semester resources",
+                  "Advanced mock tests",
+                  "Priority access to new content",
+                  "Better exam readiness"
+                ]}
+                actionLabel="Go annual"
+                href="#pricing"
+              />
+            </div>
+          </div>
+        </section>
+
         <section className="stats-grid" aria-label="Dashboard statistics">
           <StatCard label="Current semester" value={semester ? `Sem ${semester}` : "-"} detail="Your active workspace" tone="red" />
           <StatCard label="Total subjects" value={loading ? "-" : subjects.length} detail="Across your curriculum" tone="violet" />
@@ -310,7 +428,14 @@ export default function Home() {
             <Link to={notesPath} className={`quick-action ${!firstSubject ? "quick-action-disabled" : ""}`}><Icon>=</Icon><span><strong>View notes</strong><small>Open your first subject</small></span><b>-&gt;</b></Link>
             <Link to={mcqPath} className={`quick-action ${!firstSubject ? "quick-action-disabled" : ""}`}><Icon>&gt;</Icon><span><strong>Start MCQ test</strong><small>Practice your recall</small></span><b>-&gt;</b></Link>
             <Link to={materialsPath} className={`quick-action ${!firstSubject ? "quick-action-disabled" : ""}`}><Icon>v</Icon><span><strong>Download material</strong><small>Browse subject resources</small></span><b>-&gt;</b></Link>
-            <Link to="#" className="quick-action quick-action-disabled"><Icon>~</Icon><span><strong>Performance analytics</strong><small>Coming soon</small></span><b>-&gt;</b></Link>
+            <Link to={isPremium ? "#" : "/pricing"} className={`quick-action ${!isPremium ? "quick-action-premium-gate" : ""}`}>
+              <Icon>~</Icon>
+              <span>
+                <strong>{isPremium ? "Performance analytics" : "Premium analytics"}</strong>
+                <small>{isPremium ? "Your growth snapshot" : "Unlock with a plan"}</small>
+              </span>
+              <b>-&gt;</b>
+            </Link>
           </div>
         </section>
 

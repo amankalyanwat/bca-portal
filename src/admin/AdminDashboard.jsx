@@ -14,7 +14,11 @@ import { useAuth } from "../AuthContext";
 
 const SEM_OPTIONS = [1, 2, 3, 4, 5, 6];
 
-const EMPTY_QUESTION = { question: "", options: ["", "", "", ""], correct: 0 };
+const EMPTY_QUESTION = { question: "", options: ["", "", "", ""], correct: null };
+
+function createEmptyQuestion() {
+  return { ...EMPTY_QUESTION, options: ["", "", "", ""] };
+}
 
 function getFirestoreErrorMessage(error, fallback) {
   if (error?.code === "permission-denied") {
@@ -49,7 +53,7 @@ export default function AdminDashboard() {
   const [editingMaterialId, setEditingMaterialId] = useState(null);
 
   // MCQ builder state
-  const [mcqQuestions, setMcqQuestions] = useState([{ ...EMPTY_QUESTION }]);
+  const [mcqQuestions, setMcqQuestions] = useState([createEmptyQuestion()]);
   const [editingMcqId, setEditingMcqId] = useState(null); // null = creating new set, else editing this doc id
 
   const [status, setStatus] = useState("");
@@ -171,7 +175,6 @@ export default function AdminDashboard() {
     });
     setNewSubjectId("");
     setNewSubjectName("");
-      await setDoc(doc(db, "users", uid), { semester: Number(nextSemester) }, { merge: true });
   }
 
   async function handleDeleteSubject(subjId) {
@@ -186,7 +189,7 @@ export default function AdminDashboard() {
     setEditingMcqId(null);
     setEditingMaterialId(null);
     setNewTitle("");
-    setMcqQuestions([{ ...EMPTY_QUESTION, options: ["", "", "", ""] }]);
+    setMcqQuestions([createEmptyQuestion()]);
     setMaterialsLoading(true);
     const ref = collection(
       db,
@@ -271,7 +274,7 @@ export default function AdminDashboard() {
   }
 
   function addQuestionRow() {
-    setMcqQuestions((qs) => [...qs, { ...EMPTY_QUESTION, options: ["", "", "", ""] }]);
+    setMcqQuestions((qs) => [...qs, createEmptyQuestion()]);
   }
 
   function removeQuestionRow(i) {
@@ -288,10 +291,17 @@ export default function AdminDashboard() {
         options: q.options.map((o) => o.trim()),
         correct: q.correct,
       }))
-      .filter((q) => q.question && q.options.every((o) => o));
+      .filter(
+        (q) =>
+          q.question &&
+          q.options.every((o) => o) &&
+          Number.isInteger(q.correct) &&
+          q.correct >= 0 &&
+          q.correct < q.options.length
+      );
 
     if (cleanedQuestions.length === 0) {
-      alert("Add at least one complete question (all 4 options filled).");
+      alert("Add at least one complete question with all 4 options filled and one correct answer selected.");
       return;
     }
 
@@ -322,7 +332,7 @@ export default function AdminDashboard() {
     }
 
     setNewTitle("");
-    setMcqQuestions([{ ...EMPTY_QUESTION, options: ["", "", "", ""] }]);
+    setMcqQuestions([createEmptyQuestion()]);
     setEditingMcqId(null);
     openSubject(activeSubject);
   }
@@ -333,9 +343,9 @@ export default function AdminDashboard() {
     setNewTitle(m.title);
     setMcqQuestions(
       (m.questions || []).map((q) => ({
-        question: q.question,
-        options: [...q.options],
-        correct: q.correct,
+        question: q.question || "",
+        options: Array.isArray(q.options) ? [...q.options].slice(0, 4).concat(["", "", "", ""]).slice(0, 4) : ["", "", "", ""],
+        correct: Number.isInteger(q.correct) ? q.correct : null,
       }))
     );
     setEditingMcqId(m.id);
@@ -357,7 +367,7 @@ export default function AdminDashboard() {
 
   function cancelEditingMcq() {
     setNewTitle("");
-    setMcqQuestions([{ ...EMPTY_QUESTION, options: ["", "", "", ""] }]);
+    setMcqQuestions([createEmptyQuestion()]);
     setEditingMcqId(null);
   }
 

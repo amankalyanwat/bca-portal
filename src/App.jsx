@@ -16,7 +16,7 @@ import QaMaterials from "./pages/QaMaterials";
 import AssignmentMaterials from "./pages/AssignmentMaterials";
 import PdfViewer from "./pages/PdfViewer";
 import ProfilePage from "./pages/Profile";
-
+import PricingPage from "./pages/PricingPage";
 
 export default function App() {
   return (
@@ -37,6 +37,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pricing"
+            element={
+              <ProtectedRoute>
+                <PricingPage />
               </ProtectedRoute>
             }
           />
