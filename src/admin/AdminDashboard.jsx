@@ -8,6 +8,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
+import { Link } from "react-router-dom";
 import { db, secondaryAuth } from "../firebase";
 import { useAuth } from "../AuthContext";
 
@@ -112,6 +113,7 @@ export default function AdminDashboard() {
       setNewStudentEmail("");
       setNewStudentPassword("");
       setNewStudentSemester(1);
+      await loadStudents();
     } catch (error) {
       setStatus(error?.message || "Unable to create student account.");
     } finally {
@@ -385,6 +387,7 @@ export default function AdminDashboard() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <span className="user-chip">{user?.email}</span>
+          <Link to="/" className="admin-home-link">← Dashboard</Link>
           <button onClick={logout} className="btn-ghost">Sign out</button>
         </div>
       </div>
@@ -427,7 +430,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="admin-panel" style={{ marginBottom: "1.25rem" }}>
-        <span className="section-label">Students</span>
+        <span className="section-label">Students ({students.length})</span>
 
         {studentsLoading ? (
           <p className="loading-text">Loading students…</p>

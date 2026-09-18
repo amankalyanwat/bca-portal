@@ -15,6 +15,23 @@ const SUBJECT_STYLES = [
   { icon: "o", color: "blue" },
 ];
 
+const SUBJECT_ICON_MAP = {
+  java: "/assets/java.png",
+  os: "/assets/os.png",
+  multimedia: "/assets/multimedia.png",
+  iks: "/assets/iks.png",
+  english: "/assets/english.png",
+  ecommerce: "/assets/ecommerce.png",
+};
+
+function getSubjectIcon(subject) {
+  if (subject?.icon) return subject.icon;
+
+  const key = (subject?.name || subject?.id || "").toLowerCase().trim();
+  const match = Object.keys(SUBJECT_ICON_MAP).find((name) => key.includes(name));
+  return SUBJECT_ICON_MAP[match] || "/assets/java.png";
+}
+
 function Icon({ children }) {
   return <span className="dashboard-icon" aria-hidden="true">{children}</span>;
 }
@@ -306,7 +323,10 @@ export default function Home() {
           {semester && !loading && subjects.length > 0 && <div className="subjects-grid">
             {subjects.map((subject, index) => (
               <Link key={subject.id} to={`/semester/${semester}/subject/${subject.id}`} className="modern-subject-card">
-                <div className={`subject-badge ${subject.style.color}`}><span>{subject.style.icon}</span><small>0{index + 1}</small></div>
+                <div className={`subject-badge ${subject.style.color}`}>
+                  <img src={getSubjectIcon(subject)} alt="" className="subject-badge-image" />
+                  <small>0{index + 1}</small>
+                </div>
                 <div className="subject-card-copy"><h3>{subject.name}</h3><p>{subject.notes} notes / {subject.mcqs} tests</p></div>
                 <span className="subject-arrow">-&gt;</span>
               </Link>
