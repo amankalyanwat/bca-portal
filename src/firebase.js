@@ -2,7 +2,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
 
 // 🔽 Apna Firebase project config yaha paste karo
 // Firebase Console -> Project Settings -> General -> Your apps -> SDK config
@@ -16,7 +15,8 @@ const firebaseConfig = {
 
 
 const app = initializeApp(firebaseConfig);
+const secondaryApp = initializeApp(firebaseConfig, "student-account-app");
 
 export const auth = getAuth(app);
+export const secondaryAuth = getAuth(secondaryApp);
 export const db = getFirestore(app);
-export const functions = getFunctions(app);

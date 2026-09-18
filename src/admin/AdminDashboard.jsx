@@ -7,13 +7,21 @@ import {
   setDoc,
   deleteDoc,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { db, functions } from "../firebase";
+import { createUserWithEmailAndPassword, signOut, updateProfile } from "firebase/auth";
+import { db, secondaryAuth } from "../firebase";
 import { useAuth } from "../AuthContext";
 
 const SEM_OPTIONS = [1, 2, 3, 4, 5, 6];
 
 const EMPTY_QUESTION = { question: "", options: ["", "", "", ""], correct: 0 };
+
+function getFirestoreErrorMessage(error, fallback) {
+  if (error?.code === "permission-denied") {
+    return "You do not have permission to read this data. Check that the deployed Firestore rules recognize the admin account.";
+  }
+
+  return error?.message || fallback;
+}
 
 export default function AdminDashboard() {
   const { logout, user } = useAuth();
@@ -49,13 +57,18 @@ export default function AdminDashboard() {
 
   async function loadStudents() {
     setStudentsLoading(true);
-    const snap = await getDocs(collection(db, "users"));
-    setStudents(
-      snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (a.name || a.email || a.id).localeCompare(b.name || b.email || b.id))
-    );
-    setStudentsLoading(false);
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      setStudents(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.name || a.email || a.id).localeCompare(b.name || b.email || b.id))
+      );
+    } catch (error) {
+      setStatus(getFirestoreErrorMessage(error, "Unable to load students."));
+    } finally {
+      setStudentsLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -80,16 +93,20 @@ export default function AdminDashboard() {
     }
 
     try {
-      const createStudent = httpsCallable(functions, "createStudentAccount");
-      const result = await createStudent({
-        name,
+      const result = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      if (name) {
+        await updateProfile(result.user, { displayName: name });
+      }
+      await setDoc(doc(db, "users", result.user.uid), {
         email,
-        password,
+        name,
         semester: Number(newStudentSemester),
+        role: "student",
+        createdAt: new Date().toISOString(),
       });
 
       setStatus(
-        `Student created: ${result.data.email} (Semester ${result.data.semester})`
+        `Student created: ${email} (Semester ${newStudentSemester})`
       );
       setNewStudentName("");
       setNewStudentEmail("");
@@ -97,13 +114,14 @@ export default function AdminDashboard() {
       setNewStudentSemester(1);
     } catch (error) {
       setStatus(error?.message || "Unable to create student account.");
+    } finally {
+      await signOut(secondaryAuth).catch(() => {});
     }
   }
 
   async function handleUpdateStudentSemester(uid, nextSemester) {
     try {
-      const updateStudent = httpsCallable(functions, "updateStudentSemester");
-      await updateStudent({ uid, semester: Number(nextSemester) });
+      await setDoc(doc(db, "users", uid), { semester: Number(nextSemester) }, { merge: true });
       setStatus("Student semester updated.");
       await loadStudents();
     } catch (error) {
@@ -112,12 +130,11 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteStudent(uid) {
-    if (!confirm("Delete this student account and profile?")) return;
+    if (!confirm("Deactivate this student and remove semester access?")) return;
 
     try {
-      const deleteStudent = httpsCallable(functions, "deleteStudentAccount");
-      await deleteStudent({ uid });
-      setStatus("Student deleted.");
+      await setDoc(doc(db, "users", uid), { semester: null, role: "disabled" }, { merge: true });
+      setStatus("Student deactivated. Auth account deletion requires the paid plan.");
       await loadStudents();
     } catch (error) {
       setStatus(error?.message || "Unable to delete student.");
@@ -127,10 +144,15 @@ export default function AdminDashboard() {
   async function loadSubjects() {
     setSubjectsLoading(true);
     setActiveSubject(null);
-    const ref = collection(db, "semesters", `sem${semId}`, "subjects");
-    const snap = await getDocs(ref);
-    setSubjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    setSubjectsLoading(false);
+    try {
+      const ref = collection(db, "semesters", `sem${semId}`, "subjects");
+      const snap = await getDocs(ref);
+      setSubjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (error) {
+      setStatus(getFirestoreErrorMessage(error, "Unable to load subjects."));
+    } finally {
+      setSubjectsLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -147,8 +169,7 @@ export default function AdminDashboard() {
     });
     setNewSubjectId("");
     setNewSubjectName("");
-    setStatus(`Subject "${cleanId}" added.`);
-    loadSubjects();
+      await setDoc(doc(db, "users", uid), { semester: Number(nextSemester) }, { merge: true });
   }
 
   async function handleDeleteSubject(subjId) {
@@ -430,7 +451,14 @@ export default function AdminDashboard() {
                       <option key={s} value={s}>Sem {s}</option>
                     ))}
                   </select>
-                  <button className="admin-delete" onClick={() => handleDeleteStudent(student.id)}>✕</button>
+                  <button
+                    className="admin-delete"
+                    title="Deactivate student"
+                    aria-label={`Deactivate ${student.name || student.email || "student"}`}
+                    onClick={() => handleDeleteStudent(student.id)}
+                  >
+                    ✕
+                  </button>
                 </div>
               ))
             )}
