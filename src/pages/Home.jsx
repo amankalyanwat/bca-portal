@@ -301,7 +301,7 @@ export default function Home() {
           >
             <span className="avatar-button">{firstName.slice(0, 1).toUpperCase()}</span>
             <span className="profile-name">{firstName}</span>
-            <span className="profile-chevron" aria-hidden="true">v</span>
+            {/* <span className="profile-chevron" aria-hidden="true">v</span> */}
           </button>
           {profileOpen && (
             <div className="profile-menu" role="menu">
@@ -344,7 +344,7 @@ export default function Home() {
           {!isPremium && <Link to="/pricing">View pricing</Link>}
         </div>
 
-        <section className="startup-panel" id="pricing">
+        {/* <section className="startup-panel" id="pricing">
           <div className="section-heading">
             <div>
               <span className="dashboard-kicker">BCA startup</span>
@@ -413,7 +413,7 @@ export default function Home() {
               />
             </div>
           </div>
-        </section>
+        </section> */}
 
         <section className="stats-grid" aria-label="Dashboard statistics">
           <StatCard label="Current semester" value={semester ? `Sem ${semester}` : "-"} detail="Your active workspace" tone="red" />
