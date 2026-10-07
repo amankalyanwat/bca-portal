@@ -1,0 +1,10 @@
+import { Canvas } from "@react-three/fiber";
+import { Physics } from "@react-three/rapier";
+import { Suspense, useEffect, useState } from "react";
+import WorldMap from "./WorldMap";
+import Character from "./Character";
+import RemotePlayer from "./RemotePlayer";
+import InteractiveZone from "./InteractiveZone";
+
+export const zones = [{ id:"materials", name:"Materials Library", color:"#ef476f", position:[-9,.08,-5], radius:4, description:"Browse notes, videos, assignments and subject resources." },{ id:"quiz", name:"MCQ Arena", color:"#7c5ce0", position:[8,.08,-6], radius:4, description:"Build exam confidence through chapter-wise MCQ practice." },{ id:"forum", name:"Doubt Forum", color:"#0fa3b1", position:[-8,.08,8], radius:4, description:"Ask classmates, share explanations, and learn together." },{ id:"code", name:"Code Lab", color:"#f4a261", position:[8,.08,8], radius:4, description:"View practical snippets for C, C++, Java and Python." },{ id:"profile", name:"Student Hub", color:"#2a9d8f", position:[0,.08,-12], radius:4, description:"Manage your profile and saved learning resources." }];
+export default function Canvas3D({ controls, player, onPlayer, remotePlayers, onZone, onNearby }) { const [nearZone,setNearZone] = useState(null); useEffect(() => { onNearby?.(nearZone); }, [nearZone, onNearby]); useEffect(() => { const open = () => nearZone && onZone(nearZone); window.addEventListener("world-interact",open); return () => window.removeEventListener("world-interact",open); },[nearZone,onZone]); return <Canvas shadows dpr={[1,1.5]} camera={{ fov:45, position:[0,5,14]}} gl={{ antialias:false, powerPreference:"high-performance" }} onCreated={({gl}) => { gl.outputColorSpace = "srgb"; }}><Suspense fallback={null}><Physics gravity={[0,-18,0]}><WorldMap /><Character controls={controls} onPosition={onPlayer} />{remotePlayers.map((remote) => <RemotePlayer player={remote} key={remote.id} />)}{zones.map((zone) => <InteractiveZone key={zone.id} zone={zone} player={player} onNear={setNearZone} onInteract={onZone} />)}</Physics></Suspense></Canvas>; }

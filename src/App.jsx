@@ -1,8 +1,10 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { AuthProvider } from "./AuthContext";
 import ProtectedRoute from "./ProtectedRoute";
 import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
 import Home from "./pages/Home";
 import Subjects from "./pages/Subjects";
 import Materials from "./pages/Materials";
@@ -17,15 +19,22 @@ import AssignmentMaterials from "./pages/AssignmentMaterials";
 import PdfViewer from "./pages/PdfViewer";
 import ProfilePage from "./pages/Profile";
 import PricingPage from "./pages/PricingPage";
+import Forum from "./pages/Forum";
+import Playground from "./pages/Playground";
+const OpenWorld = lazy(() => import("./pages/OpenWorld"));
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forum" element={<ProtectedRoute><Forum /></ProtectedRoute>} />
+          <Route path="/playground" element={<ProtectedRoute><Playground /></ProtectedRoute>} />
+          <Route path="/world" element={<ProtectedRoute><Suspense fallback={<div className="world-loading">Loading your 3D campus…</div>}><OpenWorld /></Suspense></ProtectedRoute>} />
           <Route
-            path="/"
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <Home />
@@ -40,14 +49,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/pricing"
-            element={
-              <ProtectedRoute>
-                <PricingPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/pricing" element={<PricingPage />} />
           <Route
             path="/semester/:semId"
             element={

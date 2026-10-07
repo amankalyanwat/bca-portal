@@ -74,6 +74,22 @@ export default function Materials() {
           </span>
           <span className="material-download">Open →</span>
         </Link>
+
+        <Link to="/forum" className="row-card material-row">
+          <span>
+            <span className="row-title">Doubt Forum</span>
+            <span className="material-meta">Ask questions and learn with peers</span>
+          </span>
+          <span className="material-download">Join →</span>
+        </Link>
+
+        <Link to="/playground" className="row-card material-row">
+          <span>
+            <span className="row-title">Coding Playground</span>
+            <span className="material-meta">C, C++, Java and Python snippets</span>
+          </span>
+          <span className="material-download">Open →</span>
+        </Link>
       </div>
     </div>
   );

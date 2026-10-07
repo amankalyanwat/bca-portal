@@ -24,7 +24,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate("/");
+      navigate("/dashboard");
     } catch (err) {
       setError(
         err?.message || "Invalid email or password. Please contact admin if this device is already in use."
@@ -36,9 +36,49 @@ export default function Login() {
 
   return (
     <div className="login-screen">
+      <div className="login-hero">
+        <div className="login-hero-copy">
+          <span className="login-eyebrow">BCA student growth platform</span>
+          <h1>Study smarter with notes, PYQs, MCQs, and revision flow built around your semester.</h1>
+          <p>
+            Keep every subject, resource, and practice loop in one place so students can learn faster and stay consistent.
+          </p>
+
+          <div className="trust-row">
+            <div>
+              <strong>4+</strong>
+              <span>Semester tracks</span>
+            </div>
+            <div>
+              <strong>100%</strong>
+              <span>Student-focused</span>
+            </div>
+            <div>
+              <strong>24/7</strong>
+              <span>Revision access</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="feature-grid">
+          <div className="feature-card">
+            <span>Notes</span>
+            <strong>Organised study material</strong>
+          </div>
+          <div className="feature-card">
+            <span>Practice</span>
+            <strong>MCQs and quick revision</strong>
+          </div>
+          <div className="feature-card">
+            <span>Progress</span>
+            <strong>Track your momentum</strong>
+          </div>
+        </div>
+      </div>
+
       <div className="login-card">
         <span className="login-eyebrow">Restricted Access</span>
-        <h1 className="login-title">BCA Material Portal</h1>
+        <h2 className="login-title">BCA Material Portal</h2>
         <p className="login-subtitle">Sign in with the credentials issued to you.</p>
 
         <form onSubmit={handleSubmit}>

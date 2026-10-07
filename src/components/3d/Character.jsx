@@ -1,0 +1,15 @@
+import { RigidBody, CapsuleCollider } from "@react-three/rapier";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useRef } from "react";
+import * as THREE from "three";
+
+export default function Character({ controls, onPosition }) {
+  const body = useRef(); const visual = useRef(); const { camera } = useThree(); const velocity = useRef(new THREE.Vector3()); const target = useRef(new THREE.Vector3()); const yaw = useRef(0); const drag = useRef(null);
+  useEffect(() => { const interact = (event) => { if (event.code === "KeyE") window.dispatchEvent(new Event("world-interact")); }; window.addEventListener("keydown", interact); return () => window.removeEventListener("keydown", interact); }, []);
+  useEffect(() => { const start = (event) => { if (event.target.closest?.(".virtual-joystick, button, a")) return; drag.current = { x:event.clientX, y:event.clientY }; }; const move = (event) => { if (!drag.current) return; yaw.current -= (event.clientX - drag.current.x) * .009; drag.current = { x:event.clientX, y:event.clientY }; }; const end = () => { drag.current=null; }; window.addEventListener("pointerdown",start); window.addEventListener("pointermove",move); window.addEventListener("pointerup",end); return () => { window.removeEventListener("pointerdown",start); window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",end); }; }, []);
+  useFrame((_, delta) => { if (!body.current) return; const translation = body.current.translation(); const forward = (controls.keys.KeyW ? 1 : 0) - (controls.keys.KeyS ? 1 : 0) + -controls.joystick.y; const side = (controls.keys.KeyD ? 1 : 0) - (controls.keys.KeyA ? 1 : 0) + controls.joystick.x; const moving = Math.hypot(forward, side) > .12; const speed = 5;
+    if (moving) { const angle = Math.atan2(side, forward) + yaw.current; velocity.current.set(Math.sin(angle) * speed, 0, Math.cos(angle) * speed); visual.current.rotation.y = THREE.MathUtils.damp(visual.current.rotation.y, angle, 10, delta); } else velocity.current.set(0,0,0); body.current.setLinvel({ x: velocity.current.x, y: body.current.linvel().y, z: velocity.current.z }, true); if (controls.keys.Space && translation.y < 1.12) body.current.setLinvel({ x: velocity.current.x, y: 6.2, z: velocity.current.z }, true);
+    target.current.set(translation.x + Math.sin(yaw.current) * 7.5, translation.y + 3.2, translation.z + Math.cos(yaw.current) * 7.5); camera.position.lerp(target.current, 1 - Math.exp(-5 * delta)); camera.lookAt(translation.x, translation.y + 1, translation.z); onPosition({ x: translation.x, y: translation.y, z: translation.z });
+  });
+  return <RigidBody ref={body} colliders={false} position={[0,1,8]} enabledRotations={[false,false,false]} linearDamping={8}><CapsuleCollider args={[.55,.35]} /><group ref={visual}><mesh castShadow><capsuleGeometry args={[.35,.8,5,10]} /><meshStandardMaterial color="#ef476f" roughness={.65} /></mesh><mesh position={[0,.63,.02]}><sphereGeometry args={[.3,16,12]} /><meshStandardMaterial color="#f5c6a5" /></mesh></group></RigidBody>;
+}

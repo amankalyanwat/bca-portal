@@ -1,0 +1,3 @@
+import { Link } from "react-router-dom";
+const routes = { materials:"/", quiz:"/", forum:"/forum", code:"/playground", profile:"/profile" };
+export default function ZoneModal({ zone, onClose }) { if (!zone) return null; return <div className="zone-modal-backdrop" onMouseDown={(event)=>event.target===event.currentTarget&&onClose()}><section className="zone-modal" role="dialog" aria-modal="true"><button className="modal-close" onClick={onClose}>×</button><span className="dashboard-kicker">{zone.name}</span><h2>{zone.name}</h2><p>{zone.description}</p><Link to={routes[zone.id]} className="hero-button" onClick={onClose}>Open portal <span>→</span></Link></section></div>; }

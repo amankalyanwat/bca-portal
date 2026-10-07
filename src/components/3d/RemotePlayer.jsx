@@ -1,0 +1,2 @@
+import { Html } from "@react-three/drei";
+export default function RemotePlayer({ player }) { return <group position={[player.x || 0, (player.y || 0) + .8, player.z || 0]}><mesh castShadow><capsuleGeometry args={[.32, .9, 5, 10]} /><meshStandardMaterial color="#8b5cf6" roughness={.65} /></mesh><mesh position={[0,.72,.02]}><sphereGeometry args={[.28,16,12]} /><meshStandardMaterial color="#fed0ad" /></mesh><Html position={[0,1.45,0]} center distanceFactor={13}><span className="player-label">{player.name || "Student"}</span></Html></group>; }

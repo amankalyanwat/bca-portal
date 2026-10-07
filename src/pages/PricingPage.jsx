@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
 const plans = [
@@ -43,22 +43,38 @@ const plans = [
 
 export default function PricingPage() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const handleDemoUpgrade = () => {
     localStorage.setItem("bca-premium-demo", "true");
-    window.location.href = "/";
+
+    if (user) {
+      navigate("/dashboard");
+      return;
+    }
+
+    navigate("/login");
   };
 
   return (
     <div className="dashboard-shell">
       <nav className="dashboard-nav">
-        <Link to="/" className="dashboard-brand" aria-label="Back to dashboard">
+        <Link to={user ? "/dashboard" : "/"} className="dashboard-brand" aria-label="Back to dashboard">
           <span className="brand-mark">bca<span>.</span></span>
           <span className="brand-caption">material portal</span>
         </Link>
         <div className="nav-actions">
-          <Link to="/" className="nav-text-link">Dashboard</Link>
-          <button className="sign-out-link" type="button" onClick={logout}>Sign out</button>
+          {user ? (
+            <>
+              <Link to="/dashboard" className="nav-text-link">Dashboard</Link>
+              <button className="sign-out-link" type="button" onClick={logout}>Sign out</button>
+            </>
+          ) : (
+            <>
+              <Link to="/" className="nav-text-link">Home</Link>
+              <Link to="/login" className="nav-text-link">Student login</Link>
+            </>
+          )}
         </div>
       </nav>
 
@@ -117,9 +133,11 @@ export default function PricingPage() {
           </ul>
         </section>
 
-        <div className="pricing-footer-note">
-          Signed in as <strong>{user?.email}</strong>
-        </div>
+        {user && (
+          <div className="pricing-footer-note">
+            Signed in as <strong>{user?.email}</strong>
+          </div>
+        )}
       </main>
     </div>
   );
